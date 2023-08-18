@@ -19,10 +19,16 @@ repositories {
         name = "sonatype"
         url = "https://oss.sonatype.org/content/groups/public/"
     }
+    maven {
+        name = "worldedit"
+        url = "https://maven.enginehub.org/repo"
+    }
 }
 
 dependencies {
     compileOnly "org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT"
+    compileOnly "com.sk89q.worldedit:worldedit-core:7.3.0-SNAPSHOT"
+    compileOnly "com.sk89q.worldedit:worldedit-bukkit:7.3.0-SNAPSHOT"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
