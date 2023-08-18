@@ -1,0 +1,6 @@
+name: example
+version: '${version}'
+main: com.mgs.example.Example
+api-version: '1.20'
+authors: [example author]
+description: example description

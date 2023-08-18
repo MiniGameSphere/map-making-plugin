@@ -1,0 +1,149 @@
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.0'
+}
+
+group = 'com.mgs'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "spigotmc-repo"
+        url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
+    }
+    maven {
+        name = "sonatype"
+        url = "https://oss.sonatype.org/content/groups/public/"
+    }
+}
+
+dependencies {
+    compileOnly "org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}
+
+def targetJavaVersion = 19
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+processResources {
+    def props = [version: version]
+    inputs.properties props
+    filteringCharset 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand props
+    }
+}
+
+
+tasks.register('preRunServer'){
+    dependsOn tasks.build
+    doLast{
+        def pluginString = this.rootProject.name
+        def runDir = "${projectDir.path}/run"
+        def f = new File(runDir + '/plugins/' + pluginString + '.jar')
+        if(!f.parentFile.exists()) {f.parentFile.mkdirs()}
+        f.createNewFile()
+
+        def pluginName = pluginString + '-' + this.properties.get('version') + '.jar'
+        def pluginPath = new File(projectDir.path + '/build/libs/' + pluginName)
+        Files.copy(pluginPath.toPath(),f.toPath(), StandardCopyOption.REPLACE_EXISTING)
+
+        def serverJar = new File(runDir + "/server.jar")
+        if (!serverJar.exists()) {
+            def buildTools = runDir + '/buildtools/'
+            def SpigotFolder = new File(buildTools + '/SpigotJar/')
+            if (!SpigotFolder.exists() || SpigotFolder.listFiles().length == 0) {
+                ((JavaExec) tasks.named('buildSpigot').get()).exec()
+            }
+        }
+
+        def setupFolder = new File("../server-setup")
+        if (!setupFolder.exists()) return;
+
+        def pluginsFolder = new File(setupFolder, "plugins")
+        def serverProperties = new File(setupFolder, "server.properties")
+        def worldFolder = new File(setupFolder, "world")
+        def eula = new File(setupFolder, "eula.txt")
+
+        if (pluginsFolder.exists() && pluginsFolder.isDirectory()) {
+            for (final def file in pluginsFolder.listFiles()) {
+                def name = file.name
+                if (name.substring(name.length() - 4) == ".jar") {
+                    def versionlessName = name.split("-")[0] + ".jar"
+                    def destinationJar = new File("$runDir/plugins/", versionlessName)
+                    destinationJar.createNewFile()
+                    Files.copy(file.toPath(), destinationJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }
+        if (serverProperties.exists() && serverProperties.isFile()) {
+            def propertiesContents = serverProperties.readLines()
+            def MOTDIndex = propertiesContents.indexOf("motd=")
+            propertiesContents.set(MOTDIndex, "motd=" + pluginString)
+            def properties = new StringBuilder()
+            propertiesContents.forEach {properties.append(it).append("\n")}
+
+            def serverPropertyFile = new File(runDir, "server.properties")
+            serverPropertyFile.write(properties.toString())
+        }
+
+        if (worldFolder.exists()) {
+            def serverWorld = new File(runDir + "/world")
+            if (!serverWorld.isDirectory()) {
+                serverWorld.delete()
+            }
+            if (!serverWorld.exists()) {
+                Files.createSymbolicLink(serverWorld.toPath(), java.nio.file.Path.of("../"+worldFolder.path))
+            }
+        }
+        if (eula.exists() && eula.isFile()) {
+            def serverEula = new File(runDir, "eula.txt")
+            Files.copy(eula.toPath(), serverEula.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+    }
+}
+
+tasks.register('buildSpigot', JavaExec) {
+    def runDir = "${projectDir.path}/run"
+
+    def buildTools = new File(runDir + '/buildtools')
+    def buildToolsJar = new File(buildTools.toPath().toString() + '/BuildTools.jar')
+    if (!buildToolsJar.exists()) {
+        Files.createDirectories(buildTools.toPath())
+        buildToolsJar.createNewFile()
+    }
+    def url = new URL('https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar')
+    url.withInputStream{ i -> buildToolsJar.withOutputStream{ it << i }}
+
+    classpath(buildToolsJar)
+    workingDir(buildTools)
+    args = ["--rev", spigot_mc_version, "--compile", "SPIGOT", "-oSpigotJar"]
+
+    doLast{
+        def serverJar = new File(runDir + "/server.jar")
+        def SpigotFolder = new File(buildTools.toPath().toString() + "/SpigotJar/")
+        def files = SpigotFolder.listFiles()
+        File builtSpigotJar = files[0]
+        Files.move(builtSpigotJar.toPath(), serverJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+
+tasks.register('runServer', JavaExec) {
+    dependsOn tasks.named('preRunServer')
+    def runDir = "${projectDir.path}/run"
+    classpath = files(runDir + '/server.jar')
+    workingDir = file(runDir)
+    //args("nogui")
+}
