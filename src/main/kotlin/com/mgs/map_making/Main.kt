@@ -1,8 +1,8 @@
-package com.mgs.example;
+package com.mgs.map_making;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-class Example : JavaPlugin() {
+class Main : JavaPlugin() {
 
     override fun onEnable() {
         // Plugin startup logic

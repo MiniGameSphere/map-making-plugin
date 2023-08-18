@@ -1,6 +1,6 @@
-name: example
+name: mgs-map-making
 version: '${version}'
-main: com.mgs.example.Example
+main: com.mgs.map_making.Main
 api-version: '1.20'
-authors: [example author]
-description: example description
+authors: [Skye]
+description: A plugin designed to provide utils for other map-making plugins
