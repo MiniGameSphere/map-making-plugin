@@ -142,11 +142,11 @@ tasks.register('buildSpigot', JavaExec) {
     args = ["--rev", spigot_mc_version, "--compile", "SPIGOT", "-oSpigotJar"]
 
     doLast{
-        def serverJar = new File(runDir + "/server.jar")
+        def serverJarPath = java.nio.file.Path.of(runDir + '/server.jar')
         def SpigotFolder = new File(buildTools.toPath().toString() + "/SpigotJar/")
         def files = SpigotFolder.listFiles()
         File builtSpigotJar = files[0]
-        Files.move(builtSpigotJar.toPath(), serverJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        Files.move(builtSpigotJar.toPath(), serverJarPath, StandardCopyOption.REPLACE_EXISTING)
     }
 }
 
