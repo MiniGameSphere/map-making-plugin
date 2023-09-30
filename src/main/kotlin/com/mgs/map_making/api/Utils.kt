@@ -5,11 +5,15 @@ import com.sk89q.worldedit.IncompleteRegionException
 import com.sk89q.worldedit.WorldEdit
 import com.sk89q.worldedit.bukkit.BukkitAdapter
 import com.sk89q.worldedit.math.BlockVector3
+import com.sk89q.worldedit.regions.NullRegion
 import com.sk89q.worldedit.regions.Region
 import com.sk89q.worldedit.util.formatting.text.TextComponent
 import com.sk89q.worldedit.world.World
-import org.bukkit.Material
+import com.sk89q.worldedit.world.block.BaseBlock
+import com.sk89q.worldedit.world.block.BlockType
 import org.bukkit.entity.Player
+
+import com.sk89q.worldedit.entity.Player as WePlayer
 
 var Location.blockPos : BlockPos
     get() {
@@ -22,33 +26,52 @@ var Location.blockPos : BlockPos
         world ?: { this.world = world }
     }
 
-fun <T: Enum<T>> scanRegion(player: Player, map: Map<Material, Enum<T>>) : MutableList<GameBlock<T>> {
-    val wePlayer = BukkitAdapter.adapt(player)
+private fun getPlayerSelectionRegion(player: WePlayer): Region? {
     val sessionManager = WorldEdit.getInstance().sessionManager
-    val session = sessionManager.get(wePlayer)
+    val session = sessionManager.get(player)
     val selectionWorld = session.selectionWorld
     val region : Region
+    session.clipboard
     try {
         if (selectionWorld == null) throw IncompleteRegionException()
         region = session.getSelection(selectionWorld)
     } catch (ex: IncompleteRegionException) {
-        wePlayer.printError(TextComponent.of("Please make a region selection first."))
-        return arrayListOf()
+        player.printError(TextComponent.of("Please make a selection first."))
+        return null
     }
+    return region
+}
+
+
+fun <T: Enum<T>> scanGameBlockRegion(player: Player, map: (BaseBlock) -> T?): MutableList<GameBlock<T>> {
+    val wePlayer = BukkitAdapter.adapt(player)
+    val region = getPlayerSelectionRegion(wePlayer) ?: return arrayListOf()
+    val world = region.world ?: return arrayListOf()
+
+    val offset = wePlayer.blockLocation
+
     val outArray = arrayListOf<GameBlock<T>>()
     region.forEach {
-        val blockType = scanBlockFromVector(it, selectionWorld, map)
+        val blockType = scanGameBlockFromVector(it, world, map)
         if (blockType != null) {
-            outArray.add(GameBlock(blockType, BlockPos(it.x, it.y, it.z)))
+            outArray.add(GameBlock(blockType, BlockPos(it.x - offset.blockX, it.y - offset.blockY, it.z - offset.blockZ)))
         }
     }
     return outArray
 }
 
-private fun <T: Enum<T>> scanBlockFromVector(vector: BlockVector3, world: World, map: Map<Material, Enum<T>>) : Enum<T>? {
-    val bukkitWorld = BukkitAdapter.adapt(world)
-    val pos = BlockPos(vector.x, vector.y, vector.z, bukkitWorld)
-    val block = pos.getBlock().type
-    return map[block]
+private fun <T: Enum<T>> scanGameBlockFromVector(vector: BlockVector3, world: World, map: (BaseBlock) -> T?) : T? {
+    val pos = BlockPos(vector.x, vector.y, vector.z)
+    val block = pos.getWeBlock(world)
+    return map(block)
+}
+
+fun <T: Enum<T>> scanGameBlockRegion(player: Player, map: Map<BlockType, T>): MutableList<GameBlock<T>> {
+    return scanGameBlockRegion(player){baseBlock -> map[baseBlock.blockType]}
+}
+
+fun scanBlockRegion(player: Player): Region {
+    val wePlayer = BukkitAdapter.adapt(player)
+    return getPlayerSelectionRegion(wePlayer) ?: NullRegion()
 }
 
